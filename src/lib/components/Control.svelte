@@ -123,23 +123,33 @@ on:mousedown={focusControl}
     ></Input>
   </div>
   <!-- buttons, indicators -->
-  <div class="indicator" class:is-loading={isFetchingData} >
-    {#if clearable && !disabled}
-    <div aria-hidden="true" class="indicator-container close-icon"
-      on:mousedown|preventDefault
-      on:click={() => dispatch('deselect')}
-    >
-      <slot name="clear-icon"></slot>
+  <div class="indicator" class:is-loading={isFetchingData}>
+    <div aria-hidden="true" class="indicator-container select-icon">
+      {#if $hasFocus}
+        <slot name="select-icon" hasDropdownOpened={$hasDropdownOpened} />
+      {/if}
     </div>
+    {#if $hasFocus && selectedOptions.length}
+      <span class="indicator-separator"></span>
+    {/if}
+    {#if clearable && !disabled}
+      <div
+        aria-hidden="true"
+        class="indicator-container close-icon"
+        on:mousedown|preventDefault
+        on:click={() => dispatch('deselect')}
+      >
+        <slot name="clear-icon" />
+      </div>
     {/if}
     {#if clearable}
-    <span class="indicator-separator"></span>
+      <span class="indicator-separator"></span>
     {/if}
     <div aria-hidden="true" class="indicator-container" on:mousedown={toggleDropdown}>
-      <slot name="indicator-icon" hasDropdownOpened={$hasDropdownOpened}></slot>
+      <slot name="indicator-icon" hasDropdownOpened={$hasDropdownOpened} />
     </div>
   </div>
-  <slot name="control-end"></slot>
+<slot name="control-end" />
 </div>
 
 <style>

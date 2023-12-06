@@ -1,9 +1,9 @@
 <script context="module">
   import defaults from './settings.js';
-  import { debounce, xhr, fieldInit, iOS, android } from './lib/utils.js'; // shared across instances
+  import { debounce, xhr, fieldInit, iOS, android, escapeHtml } from './lib/utils.js'; // shared across instances
 
   const formatterList = {
-    default: function(item) { return item[this.label]; }
+    default: function(item) { return escapeHtml(item[this.label]); }
   };
   // provide ability to add additional renderers
   export function addFormatter(name, formatFn) {
@@ -42,7 +42,7 @@
   export let groupLabelField = defaults.groupLabelField;
   export let groupItemsField = defaults.groupItemsField;
   export let disabledField = defaults.disabledField;
-  export let placeholder = defaults.placeholder;
+  export let placeholder = 'Select';
   // UI, UX
   export let searchable = defaults.searchable;
   export let clearable = defaults.clearable;
@@ -104,7 +104,7 @@
   export const getSelection = onlyValues => {
     if (!selectedOptions.length) return multiple ? [] : null;
     const _selection = selectedOptions.map(opt => onlyValues
-      ? opt[labelAsValue ? currentLabelField : currentValueField] 
+      ? opt[labelAsValue ? currentLabelField : currentValueField]
       : Object.assign({}, opt));
     return multiple ? _selection : _selection[0];
   };
@@ -113,9 +113,9 @@
     triggerChangeEvent && emitChangeEvent();
   }
   // API: internal for CE
-  export const clearByParent = (doDisable, triggerChangeEvent) => {
+  export const clearByParent = doDisable => {
     clearSelection();
-    triggerChangeEvent && emitChangeEvent();
+    emitChangeEvent();
     if (doDisable) {
       disabled = true;
       fetch = null;
@@ -170,7 +170,7 @@
     internalParentValue = parentValue;
   }
   let internalParentValue = undefined;
-
+ 
   /** ************************************ Context definition */
   const inputValue = writable('');
   const hasFocus = writable(false);
@@ -181,9 +181,9 @@
   let initFetchOnly = fetchMode === 'init' || (fetchMode === 'auto' && typeof fetch === 'string' && fetch.indexOf('[query]') === -1);
   let fetchInitValue = initFetchOnly ? value : null;
   let fetchUnsubscribe = null;
-  $: fetch && createFetch(fetch, parentValue);
+  $: createFetch(fetch);
   $: disabled && hasDropdownOpened.set(false);
-  
+
   function cancelXhr() {
     if (isInitialized && isFetchingData) {
       xhr && ![0,4].includes(xhr.readyState) && xhr.abort();
@@ -192,7 +192,7 @@
     return true;
   }
 
-  function createFetch(fetch, parentValue) {
+  function createFetch(fetch) {
     if (fetchUnsubscribe) {
       fetchUnsubscribe();
       fetchUnsubscribe = null;
@@ -211,7 +211,7 @@
         isFetchingData = false;
         return;
       }
-      fetchSource(query, parentValue, fetchCallback)
+      fetchSource(query, fetchCallback)
         .then(data => {
           if (!Array.isArray(data)) {
             console.warn('[Svelecte]:Fetch - array expected, invalid property provided:', data);
@@ -237,7 +237,7 @@
     }, 500);
 
     if (initFetchOnly) {
-      if (typeof fetch === 'string' && fetch.indexOf('[parent]') !== -1 && !parentValue) return null;
+      if (typeof fetch === 'string' && fetch.indexOf('[parent]') !== -1) return null;
       isFetchingData = true;
       options = [];
       debouncedFetch(null);
@@ -298,8 +298,8 @@
     : ($inputValue.length && availableItems.length === 0 && minQuery <= 1
       ? _i18n.nomatch
       : (fetch
-        ? (minQuery <= 1 
-          ? (initFetchOnly 
+        ? (minQuery <= 1
+          ? (initFetchOnly
             ? (isFetchingData
               ? _i18n.fetchInit
               : _i18n.empty
@@ -369,7 +369,7 @@
 
   /**
    * update inner selection, when 'value' property is changed
-   * 
+   *
    * @internal before 3.9.1 it was possible when `valueAsObject` was set to set value OUTSIDE defined options. Fix at
    * 3.9.1 broke manual value setter. Which has been resolved now through #128. Which disables pre 3.9.1 behavior
    *
@@ -409,13 +409,13 @@
     prevValue = passedVal;
   }
 
-  /** 
+  /**
    * Add given option to selection pool
    * Check if not already selected or max item selection reached
-   * 
+   *
    * @returns bool
    */
-  function selectOption(opt) { 
+  function selectOption(opt) {
     if (!opt || (multiple && maxReached)) return false;
     if (selectedKeys.has(opt[currentValueField])) return;
 
@@ -438,7 +438,7 @@
       selectedKeys.clear();
       selectedKeys.add(opt[currentValueField]);
       dropdownActiveIndex = options.indexOf(opt);
-    } 
+    }
     flatItems = flatItems;
     return true;
   }
@@ -463,7 +463,7 @@
     flatItems = flatItems;
   }
 
-  function clearSelection() {
+  export function clearSelection() {
     selectedKeys.clear();
     selectedOptions = [];
     maxReached = false;       // reset forcefully, related to #145
@@ -660,8 +660,6 @@
     selectedOptions = e.detail.items;
   }
 
-
-
   /** ************************************ component lifecycle related */
 
   onMount(() => {
@@ -683,7 +681,7 @@
 
 <div class={`svelecte ${className}`} class:is-disabled={disabled} {style}>
   <Control bind:this={refControl} renderer={itemRenderer}
-    {disabled} {clearable} {searchable} {placeholder} {multiple} inputId={inputId || __id + '_input'} {resetOnBlur} collapseSelection={collapseSelection ? config.collapseSelectionFn.bind(_i18n): null}
+    {disabled} {clearable} {searchable} {placeholder} {multiple} inputId={inputId || __id} {resetOnBlur} collapseSelection={collapseSelection ? config.collapseSelectionFn.bind(_i18n): null}
     inputValue={inputValue} hasFocus={hasFocus} hasDropdownOpened={hasDropdownOpened} selectedOptions={selectedOptions} {isFetchingData}
     {dndzone} {currentValueField} {isAndroid} {isIOS} {alwaysCollapsed}
     itemComponent={controlItem}
@@ -701,26 +699,27 @@
         <path d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"></path>
       </svg>
     </slot>
-    <slot name="clear-icon" slot="clear-icon" {selectedOptions} inputValue={$inputValue}>
+    <slot name="select-icon" slot="select-icon" let:hasDropdownOpened hasDropdownOpened={hasDropdownOpened} inputValue={$inputValue}></slot>
+    <slot name="clear-icon" slot="clear-icon" {selectedOptions} inputValue={$inputValue} let:hasDropdownOpened hasDropdownOpened={hasDropdownOpened}>
       {#if selectedOptions.length}
-      <svg class="indicator-icon" height="20" width="20" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M14.348 14.849c-0.469 0.469-1.229 0.469-1.697 0l-2.651-3.030-2.651 3.029c-0.469 0.469-1.229 0.469-1.697 0-0.469-0.469-0.469-1.229 0-1.697l2.758-3.15-2.759-3.152c-0.469-0.469-0.469-1.228 0-1.697s1.228-0.469 1.697 0l2.652 3.031 2.651-3.031c0.469-0.469 1.228-0.469 1.697 0s0.469 1.229 0 1.697l-2.758 3.152 2.758 3.15c0.469 0.469 0.469 1.229 0 1.698z"></path></svg>
+        <svg class="indicator-icon" height="20" width="20" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M14.348 14.849c-0.469 0.469-1.229 0.469-1.697 0l-2.651-3.030-2.651 3.029c-0.469 0.469-1.229 0.469-1.697 0-0.469-0.469-0.469-1.229 0-1.697l2.758-3.15-2.759-3.152c-0.469-0.469-0.469-1.228 0-1.697s1.228-0.469 1.697 0l2.652 3.031 2.651-3.031c0.469-0.469 1.228-0.469 1.697 0s0.469 1.229 0 1.697l-2.758 3.152 2.758 3.15c0.469 0.469 0.469 1.229 0 1.698z"></path></svg>
       {/if}
     </slot>
   </Control>
-  <Dropdown bind:this={refDropdown} renderer={itemRenderer} {disableHighlight} {creatable} {maxReached} {alreadyCreated}
-    {virtualList} {vlHeight} {vlItemSize} lazyDropdown={virtualList || lazyDropdown} {multiple}
-    dropdownIndex={dropdownActiveIndex}
-    items={availableItems} {listIndex}
-    inputValue={dropdownInputValue} {hasDropdownOpened} {listMessage} {disabledField} createLabel={_i18n.createRowLabel}
-    metaKey={isIOS ? '⌘' : 'Ctrl'}
-    selection={collapseSelection && alwaysCollapsed ? selectedOptions : null}
-    itemComponent={dropdownItem}
-    on:select={onSelect}
-    on:deselect={onDeselect}
-    on:hover={onHover}
-    on:createoption
-    let:item={item}
-  ></Dropdown>
+<Dropdown bind:this={refDropdown} renderer={itemRenderer} {disableHighlight} {creatable} {maxReached} {alreadyCreated}
+  {virtualList} {vlHeight} {vlItemSize} lazyDropdown={virtualList || lazyDropdown} {multiple}
+  dropdownIndex={dropdownActiveIndex}
+  items={availableItems} {listIndex}
+  inputValue={dropdownInputValue} {hasDropdownOpened} {listMessage} {disabledField} createLabel={_i18n.createRowLabel}
+  metaKey={isIOS ? '⌘' : 'Ctrl'}
+  selection={collapseSelection && alwaysCollapsed ? selectedOptions : null}
+  itemComponent={dropdownItem}
+  on:select={onSelect}
+  on:deselect={onDeselect}
+  on:hover={onHover}
+  on:createoption
+  let:item={item}
+></Dropdown>
   {#if name && !hasAnchor}
   <select id={__id} name={name} {multiple} class="sv-hidden-element" tabindex="-1" {required} {disabled} use:refSelectAction={refSelectActionParams}>
     {#each selectedOptions as opt}
@@ -762,7 +761,7 @@
   .icon-slot { display: flex; }
   .sv-hidden-element { opacity: 0; position: absolute; z-index: -2; top: 0; height: var(--sv-min-height)}
 
-  /** globally available styles for control/dropdown Item components */    
+  /** globally available styles for control/dropdown Item components */
   :global(.svelecte-control .has-multiSelection .sv-item),
   :global(#dnd-action-dragged-el .sv-item) {
     background-color: var(--sv-item-selected-bg);
@@ -783,7 +782,7 @@
   }
   :global(.svelecte-control .sv-item.is-disabled) { opacity: 0.5; cursor: not-allowed; }
 
-  :global(.svelecte-control .sv-item-content),  
+  :global(.svelecte-control .sv-item-content),
   :global(#dnd-action-dragged-el .sv-item-content) {
     color: var(--sv-item-color, var(--sv-color));
     text-overflow: ellipsis;
